@@ -15,7 +15,7 @@ import urllib2
 import httplib
 
 try:
-    import json                     
+    import json
 except ImportError:
     try:
         import simplejson as json
@@ -66,33 +66,36 @@ class PMMail(object):
         self.__custom_headers = {}
         self.__attachments = []
         #self.__multipart = False
-        
+
         acceptable_keys = (
-            'api_key', 
-            'sender', 
+            'api_key',
+            'sender',
             'reply_to',
             'to', 'recipient', # 'recipient' is legacy
             'cc',
-            'bcc', 
-            'subject', 
+            'bcc',
+            'subject',
             'tag',
-            'html_body', 
-            'text_body', 
+            'html_body',
+            'text_body',
             'custom_headers',
             'attachments',
             #'multipart'
         )
-        
+
         for key in kwargs:
             if key in acceptable_keys:
                 if key == 'recipient':
                     setattr(self, '_PMMail__to', kwargs[key])
                 else:
                     setattr(self, '_PMMail__%s' % key, kwargs[key])
-                
+
         # Set up the user-agent
         self.__user_agent = 'Python/%s (python-postmark library version %s)' % ('_'.join([str(var) for var in sys.version_info]), __version__)
-        
+
+        # By default, we're not in debug (print to console) mode.
+        self.__debug = False
+
         # Try to pull in the API key from Django
         try:
             from django import VERSION
@@ -101,15 +104,16 @@ class PMMail(object):
             self.__user_agent = '%s (Django %s)' % (self.__user_agent, '_'.join([str(var) for var in VERSION]))
             if not self.__sender:
                 self.__sender = django_settings.POSTMARK_SENDER
+            self.__debug = getattr(django_settings, 'POSTMARK_DEBUG', False)
         except ImportError:
             pass
-        
+
     #
     # Properties
-    
+
     def _set_custom_headers(self, value):
         '''
-        A special set function to ensure 
+        A special set function to ensure
         we're setting with a dictionary
         '''
         if value == None:
@@ -118,7 +122,7 @@ class PMMail(object):
             setattr(self, '_PMMail__custom_headers', value)
         else:
             raise TypeError('Custom headers must be a dictionary of key-value pairs')
-        
+
     def _set_attachments(self, value):
         '''
         A special set function to ensure
@@ -130,11 +134,11 @@ class PMMail(object):
             setattr(self, '_PMMail__attachments', value)
         else:
             raise TypeError('Attachments must be a list')
-    
+
     api_key = property(
         lambda self: self.__api_key,
         lambda self, value: setattr(self, '_PMMail__api_key', value),
-        lambda self: setattr(self, '_PMMail__api_key', None), 
+        lambda self: setattr(self, '_PMMail__api_key', None),
         '''
         The API Key for your rack server on Postmark
         '''
@@ -145,25 +149,25 @@ class PMMail(object):
         lambda self: self.__sender,
         lambda self, value: setattr(self, '_PMMail__sender', value),
         lambda self: setattr(self, '_PMMail__sender', None),
-        '''        
-        The sender, in either "name@email.com" or "First Last <name@email.com>" formats.  
+        '''
+        The sender, in either "name@email.com" or "First Last <name@email.com>" formats.
         The address should match one of your Sender Signatures in Postmark.
         Specifying the address in the second fashion will allow you to replace
         the name of the sender as it appears in the recipient's email client.
         '''
     )
-        
+
     reply_to = property(
         lambda self: self.__reply_to,
         lambda self, value: setattr(self, '_PMMail__reply_to', value),
         lambda self: setattr(self, '_PMMail__reply_to', None),
         '''
-        A reply-to address, in either "name@email.com" or "First Last <name@email.com>" 
+        A reply-to address, in either "name@email.com" or "First Last <name@email.com>"
         format. The reply-to address does not have to be one of your Sender Signatures in Postmark.
         This allows a different reply-to address than sender address.
         '''
     )
-     
+
     to = property(
         lambda self: self.__to,
         lambda self, value: setattr(self, '_PMMail__to', value),
@@ -172,7 +176,7 @@ class PMMail(object):
         The recipients, in either "name@email.com" or "First Last <name@email.com>" formats
         '''
     )
-    
+
     cc = property(
         lambda self: self.__cc,
         lambda self, value: setattr(self, '_PMMail__cc', value),
@@ -181,7 +185,7 @@ class PMMail(object):
         The cc recipients, in either "name@email.com" or "First Last <name@email.com>" formats
         '''
     )
-    
+
     bcc = property(
         lambda self: self.__bcc,
         lambda self, value: setattr(self, '_PMMail__bcc', value),
@@ -190,7 +194,7 @@ class PMMail(object):
         The bcc recipients, in either "name@email.com" or "First Last <name@email.com>" formats
         '''
     )
-    
+
     subject = property(
         lambda self: self.__subject,
         lambda self, value: setattr(self, '_PMMail__subject', value),
@@ -205,12 +209,12 @@ class PMMail(object):
         lambda self, value: setattr(self, '_PMMail__tag', value),
         lambda self: setattr(self, '_PMMail__tag', None),
         '''
-        You can categorize outgoing email using the optional Tag property. 
-        If you use different tags for the different types of emails your application generates, 
+        You can categorize outgoing email using the optional Tag property.
+        If you use different tags for the different types of emails your application generates,
         you will be able to get detailed statistics for them through the Postmark user interface.
         '''
     )
-    
+
     html_body = property(
         lambda self: self.__html_body,
         lambda self, value: setattr(self, '_PMMail__html_body', value),
@@ -219,7 +223,7 @@ class PMMail(object):
         The email message body, in html format
         '''
     )
-    
+
     text_body = property(
         lambda self: self.__text_body,
         lambda self, value: setattr(self, '_PMMail__text_body', value),
@@ -228,13 +232,13 @@ class PMMail(object):
         The email message body, in text format
         '''
     )
-    
+
     custom_headers = property(
         lambda self: self.__custom_headers,
-        _set_custom_headers, 
+        _set_custom_headers,
         lambda self: setattr(self, '_PMMail__custom_headers', {}),
         '''
-        Custom headers in a standard dictionary. 
+        Custom headers in a standard dictionary.
         NOTE: To change the reply to address, use the .reply_to
         property instead of a custom header.
         '''
@@ -248,20 +252,20 @@ class PMMail(object):
         Attachments, Base64 encoded, in a list.
         '''
         )
-    
+
 #     multipart = property(
 #         lambda self: self.__multipart,
 #         lambda self, value: setattr(self, '_PMMail__multipart', value),
 #         'The API Key for one of your servers on Postmark'
 #     )
-        
+
 
     #####################
     #
-    # LEGACY SUPPORT 
+    # LEGACY SUPPORT
     #
     #####################
-    
+
     recipient = property(
         lambda self: self.__to,
         lambda self, value: setattr(self, '_PMMail__to', value),
@@ -273,11 +277,11 @@ class PMMail(object):
 
     #####################
     #
-    # END LEGACY SUPPORT 
+    # END LEGACY SUPPORT
     #
     #####################
 
-    
+
     def _check_values(self):
         '''
         Make sure all values are of the appropriate
@@ -294,25 +298,25 @@ class PMMail(object):
         elif not self.__html_body and not self.__text_body:
             raise PMMailMissingValueException('Cannot send an e-mail without either an HTML or text version of your e-mail body')
 
-    
+
     def send(self, test=False):
         '''
-        Send the email through the Postmark system.  
+        Send the email through the Postmark system.
         Pass test=True to just print out the resulting
         JSON message being sent to Postmark
         '''
         self._check_values()
-        
+
         # Set up message dictionary
         json_message = {
             'From':     self.__sender,
             'To':       self.__to,
             'Subject':  self.__subject,
         }
-        
+
         if self.__reply_to:
             json_message['ReplyTo'] = self.__reply_to
-        
+
         if self.__cc:
             json_message['Cc'] = self.__cc
 
@@ -322,13 +326,13 @@ class PMMail(object):
 
         if self.__tag:
             json_message['Tag'] = self.__tag
-        
+
         if self.__html_body:
             json_message['HtmlBody'] = self.__html_body
-            
+
         if self.__text_body:
             json_message['TextBody'] = self.__text_body
-            
+
         if len(self.__custom_headers) > 0:
             cust_headers = []
             for key in self.__custom_headers.keys():
@@ -354,17 +358,17 @@ class PMMail(object):
                             "ContentType": attachment.get_content_type(),
                             })
             json_message['Attachments'] = attachments
-            
+
 #         if (self.__html_body and not self.__text_body) and self.__multipart:
 #             # TODO: Set up regex to strip html
 #             pass
-        
+
         # If this is a test, just print the message
-        if test:
-            print 'JSON message is:\n%s' % json.dumps(json_message)
-            return
-            
-        
+        if test or self.__debug:
+            print 'Request to send email via Postmark:\n%s' % (
+                json.dumps(json_message, indent=2))
+            return True
+
         # Set up the url Request
         req = urllib2.Request(
             __POSTMARK_URL__ + 'email',
@@ -376,7 +380,7 @@ class PMMail(object):
                 'User-agent': self.__user_agent
             }
         )
-        
+
         # Attempt send
         try:
             #print 'sending request to postmark: %s' % json_message
@@ -406,8 +410,8 @@ class PMMail(object):
                 raise PMMailURLException('URLError: %d: The server couldn\'t fufill the request. (See "inner_exception" for details)' % err.code, err)
             else:
                 raise PMMailURLException('URLError: The server couldn\'t fufill the request. (See "inner_exception" for details)', err)
-                
-                
+
+
 
 class PMBounceManager(object):
     '''
@@ -420,19 +424,19 @@ class PMBounceManager(object):
         '''
         # initialize properties
         self.__api_key = None
-        
-        
+
+
         acceptable_keys = (
-            'api_key', 
+            'api_key',
         )
 
         for key in kwargs:
             if key in acceptable_keys:
                 setattr(self, '_PMBounceManager__%s' % key, kwargs[key])
-                
+
         # Set up the user-agent
         self.__user_agent = 'Python/%s (python-postmark library version %s)' % ('_'.join([str(var) for var in sys.version_info]), __version__)
-        
+
         # Try to pull in the API key from Django
         try:
             from django import VERSION
@@ -442,30 +446,30 @@ class PMBounceManager(object):
             self.__sender = django_settings.POSTMARK_SENDER
         except ImportError:
             pass
-            
+
     def _check_values(self):
         '''
         Make sure all values are of the appropriate
         type and are not missing.
         '''
         if not self.__api_key:
-            raise PMMailMissingValueException('Cannot check bounces without a Postmark Server API Key')      
+            raise PMMailMissingValueException('Cannot check bounces without a Postmark Server API Key')
 
     api_key = property(
         lambda self: self.__api_key,
         lambda self, value: setattr(self, '_PMMail__api_key', value),
-        lambda self: setattr(self, '_PMMail__api_key', None), 
+        lambda self: setattr(self, '_PMMail__api_key', None),
         '''
         The API Key for your rack server on Postmark
         '''
-    )       
-    
+    )
+
     def delivery_stats(self):
         '''
         Returns a summary of inactive emails and bounces by type.
         '''
         self._check_values()
-        
+
         req = urllib2.Request(
             __POSTMARK_URL__ + 'deliverystats',
             None,
@@ -476,7 +480,7 @@ class PMBounceManager(object):
                 'User-agent': self.__user_agent
             }
         )
-        
+
         # Attempt send
         try:
             #print 'sending request to postmark:'
@@ -487,26 +491,26 @@ class PMBounceManager(object):
             else:
             	result.close()
                 raise PMMailSendException('Return code %d: %s' % (result.code, result.msg))
-            
+
         except urllib2.HTTPError, err:
             return err
-                            
-                            
+
+
     def get_all(self, inactive='', email_filter='', tag='', count=25, offset=0):
     	'''
-        Fetches a portion of bounces according to the specified input criteria. The count and offset 
-        parameters are mandatory. You should never retrieve all bounces as that could be excessively 
-        slow for your application. To know how many bounces you have, you need to request a portion 
-        first, usually the first page, and the service will return the count in the TotalCount property 
+        Fetches a portion of bounces according to the specified input criteria. The count and offset
+        parameters are mandatory. You should never retrieve all bounces as that could be excessively
+        slow for your application. To know how many bounces you have, you need to request a portion
+        first, usually the first page, and the service will return the count in the TotalCount property
         of the response.
         '''
-        
+
         self._check_values()
-        
-        params = '?inactive=' + inactive + '&emailFilter=' + email_filter +'&tag=' + tag 
+
+        params = '?inactive=' + inactive + '&emailFilter=' + email_filter +'&tag=' + tag
         params += '&count=' + str(count) + '&offset=' + str(offset)
-        
-        req = urllib2.Request(  	
+
+        req = urllib2.Request(
             __POSTMARK_URL__ + 'bounces' + params,
             None,
             {
@@ -516,7 +520,7 @@ class PMBounceManager(object):
                 'User-agent': self.__user_agent
             }
         )
-        
+
         # Attempt send
         try:
             #print 'sending request to postmark:'
@@ -527,18 +531,18 @@ class PMBounceManager(object):
             else:
             	result.close()
                 raise PMMailSendException('Return code %d: %s' % (result.code, result.msg))
-            
+
         except urllib2.HTTPError, err:
             return err
-        
-        
+
+
     def get_single(self, bounce_id):
     	'''
-    	Get details about a single bounce. Note that the bounce ID is a numeric value that you 
+    	Get details about a single bounce. Note that the bounce ID is a numeric value that you
     	typically obtain after a getting a list of bounces.
     	'''
         self._check_values()
-        
+
         req = urllib2.Request(
             __POSTMARK_URL__ + '/bounces/' + str(bounce_id),
             None,
@@ -549,7 +553,7 @@ class PMBounceManager(object):
                 'User-agent': self.__user_agent
             }
         )
-        
+
         # Attempt send
         try:
             #print 'sending request to postmark:'
@@ -560,21 +564,21 @@ class PMBounceManager(object):
             else:
             	result.close()
                 raise PMMailSendException('Return code %d: %s' % (result.code, result.msg))
-            
+
         except urllib2.HTTPError, err:
             return err
-    
-    
+
+
     def get_dump(self, bounce_id):
         '''
-    	Returns the raw source of the bounce Postmark accepted. If Postmark does not have a dump for 
+    	Returns the raw source of the bounce Postmark accepted. If Postmark does not have a dump for
         that bounce, it will return an empty string.
     	'''
         self._check_values()
 
         req_url = __POSTMARK_URL__ + '/bounces/' + str(bounce_id) + '/dump'
         #print req_url
-        
+
         req = urllib2.Request(
 	    req_url,
             None,
@@ -585,7 +589,7 @@ class PMBounceManager(object):
                 'User-agent': self.__user_agent
             }
         )
-        
+
         # Attempt send
         try:
             print 'sending request to postmark:'
@@ -596,16 +600,16 @@ class PMBounceManager(object):
             else:
             	result.close()
                 raise PMMailSendException('Return code %d: %s' % (result.code, result.msg))
-            
+
         except urllib2.HTTPError, err:
             return err
-        
+
     def get_tags(self):
         '''
     	Returns a list of tags used for the current server.
     	'''
         self._check_values()
-        
+
         req = urllib2.Request(
             __POSTMARK_URL__ + 'bounces/tags',
             None,
@@ -616,7 +620,7 @@ class PMBounceManager(object):
                 'User-agent': self.__user_agent
             }
         )
-        
+
         # Attempt send
         try:
             #print 'sending request to postmark:'
@@ -627,10 +631,10 @@ class PMBounceManager(object):
             else:
             	result.close()
                 raise PMMailSendException('Return code %d: %s' % (result.code, result.msg))
-            
+
         except urllib2.HTTPError, err:
             return err
-        
+
     def activate(self, bounce_id):
         '''
     	Activates a deactivated bounce.
@@ -652,7 +656,7 @@ class PMBounceManager(object):
         )
 	r=h1.getresponse()
 	return json.loads(r.read())
-        
+
 
 #
 # Exceptions
@@ -686,7 +690,7 @@ class PMMailUnprocessableEntityException(PMMailSendException):
     details for further information
     '''
     pass
-    
+
 class PMMailServerErrorException(PMMailSendException):
     '''
     500: Internal error - this is on the Postmark server side.  Errors are
