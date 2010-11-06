@@ -57,17 +57,25 @@ class EmailBackend(BaseEmailBackend):
                 if len(message.attachments):
                     attachments = message.attachments
 
-            postmark_message = PMMail(
+            kwargs = dict(
                 api_key=self.api_key,
-                subject=unicode(message.subject),
-                sender=unicode(message.from_email),
+                subject=message.subject,
+                sender=message.from_email,
                 to=recipients,
-                text_body=unicode(message.body),
-                html_body=unicode(html_body),
-                reply_to=unicode(reply_to),
+                text_body=message.body,
+                html_body=html_body,
+                reply_to=reply_to,
                 custom_headers=custom_headers,
                 attachments=attachments,
-                )
+            )
+            # Convert some args to unicode if they exist, so that
+            # ugettext_lazy objects are resolved.
+            for key in [
+                'subject', 'sender', 'text_body', 'html_body', 'reply_to',
+                ]:
+                if kwargs[key] is not None:
+                    kwargs[key] = unicode(kwargs[key])
+            postmark_message = PMMail(**kwargs)
 
             postmark_message.send()
         except:
